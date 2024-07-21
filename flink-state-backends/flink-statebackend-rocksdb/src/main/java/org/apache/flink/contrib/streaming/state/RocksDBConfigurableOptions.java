@@ -218,6 +218,12 @@ public class RocksDBConfigurableOptions implements Serializable {
                             "The upper-bound of the total size of level base files in bytes. "
                                     + "The default value is '256MB'.");
 
+    public static final ConfigOption<String> MEMTABLE_TYPE =
+            key("state.backend.rocksdb.memtable")
+                    .stringType()
+                    .defaultValue("skiplist")
+                    .withDescription("Memtable data structure implementation. Can be 'skiplist' or 'keygrouped-skiplist'");
+
     public static final ConfigOption<MemorySize> WRITE_BUFFER_SIZE =
             key("state.backend.rocksdb.writebuffer.size")
                     .memoryType()

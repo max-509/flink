@@ -33,7 +33,10 @@ import org.rocksdb.ColumnFamilyDescriptor;
 import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.ColumnFamilyOptions;
 import org.rocksdb.DBOptions;
+import org.rocksdb.FlinkMemTableConfig;
+import org.rocksdb.MemTableConfig;
 import org.rocksdb.RocksDB;
+import org.rocksdb.SkipListMemTableConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,6 +90,7 @@ class RocksDBHandle implements AutoCloseable {
     private ColumnFamilyHandle defaultColumnFamilyHandle;
     private RocksDBNativeMetricMonitor nativeMetricMonitor;
     private final Long writeBufferManagerCapacity;
+    private final MemTableConfig memTableConfig;
 
     protected RocksDBHandle(
             Map<String, RocksDbKvStateInfo> kvStateInformation,
@@ -97,6 +101,28 @@ class RocksDBHandle implements AutoCloseable {
             MetricGroup metricGroup,
             @Nonnull RocksDbTtlCompactFiltersManager ttlCompactFiltersManager,
             Long writeBufferManagerCapacity) {
+        this(
+                kvStateInformation,
+                instanceRocksDBPath,
+                dbOptions,
+                columnFamilyOptionsFactory,
+                nativeMetricOptions,
+                metricGroup,
+                ttlCompactFiltersManager,
+                writeBufferManagerCapacity,
+                new SkipListMemTableConfig());
+    }
+
+    protected RocksDBHandle(
+            Map<String, RocksDbKvStateInfo> kvStateInformation,
+            File instanceRocksDBPath,
+            DBOptions dbOptions,
+            Function<String, ColumnFamilyOptions> columnFamilyOptionsFactory,
+            RocksDBNativeMetricOptions nativeMetricOptions,
+            MetricGroup metricGroup,
+            @Nonnull RocksDbTtlCompactFiltersManager ttlCompactFiltersManager,
+            Long writeBufferManagerCapacity,
+            MemTableConfig memTableConfig) {
         this.kvStateInformation = kvStateInformation;
         this.dbPath = instanceRocksDBPath.getAbsolutePath();
         this.dbOptions = dbOptions;
@@ -107,6 +133,7 @@ class RocksDBHandle implements AutoCloseable {
         this.columnFamilyHandles = new ArrayList<>(1);
         this.columnFamilyDescriptors = Collections.emptyList();
         this.writeBufferManagerCapacity = writeBufferManagerCapacity;
+        this.memTableConfig = memTableConfig;
     }
 
     void openDB() throws IOException {
@@ -136,7 +163,8 @@ class RocksDBHandle implements AutoCloseable {
                         columnFamilyDescriptors,
                         columnFamilyHandles,
                         RocksDBOperationUtils.createColumnFamilyOptions(
-                                columnFamilyOptionsFactory, "default"),
+                                        columnFamilyOptionsFactory, "default")
+                                .setMemTableConfig(memTableConfig),
                         dbOptions);
         // remove the default column family which is located at the first index
         defaultColumnFamilyHandle = columnFamilyHandles.remove(0);
@@ -144,7 +172,7 @@ class RocksDBHandle implements AutoCloseable {
         nativeMetricMonitor =
                 nativeMetricOptions.isEnabled()
                         ? new RocksDBNativeMetricMonitor(
-                                nativeMetricOptions, metricGroup, db, dbOptions.statistics())
+                        nativeMetricOptions, metricGroup, db, dbOptions.statistics())
                         : null;
     }
 

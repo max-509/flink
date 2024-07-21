@@ -33,9 +33,12 @@ import org.rocksdb.Cache;
 import org.rocksdb.ColumnFamilyOptions;
 import org.rocksdb.DBOptions;
 import org.rocksdb.Filter;
+import org.rocksdb.FlinkMemTableConfig;
 import org.rocksdb.IndexType;
+import org.rocksdb.MemTableConfig;
 import org.rocksdb.PlainTableConfig;
 import org.rocksdb.ReadOptions;
+import org.rocksdb.SkipListMemTableConfig;
 import org.rocksdb.Statistics;
 import org.rocksdb.TableFormatConfig;
 import org.rocksdb.WriteOptions;
@@ -251,6 +254,14 @@ public final class RocksDBResourceContainer implements AutoCloseable {
         }
 
         return opt;
+    }
+
+    public MemTableConfig getMemTableConfig() {
+        if ("keygrouped-skiplist".equals(internalGetOption(RocksDBConfigurableOptions.MEMTABLE_TYPE))) {
+            return new FlinkMemTableConfig();
+        } else {
+            return new SkipListMemTableConfig();
+        }
     }
 
     RocksDBNativeMetricOptions getMemoryWatcherOptions(

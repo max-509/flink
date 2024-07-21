@@ -25,6 +25,8 @@ import org.apache.flink.metrics.MetricGroup;
 
 import org.rocksdb.ColumnFamilyOptions;
 import org.rocksdb.DBOptions;
+import org.rocksdb.MemTableConfig;
+import org.rocksdb.SkipListMemTableConfig;
 
 import javax.annotation.Nonnull;
 
@@ -45,6 +47,19 @@ public class RocksDBNoneRestoreOperation<K> implements RocksDBRestoreOperation {
             MetricGroup metricGroup,
             @Nonnull RocksDbTtlCompactFiltersManager ttlCompactFiltersManager,
             Long writeBufferManagerCapacity) {
+        this(kvStateInformation, instanceRocksDBPath, dbOptions, columnFamilyOptionsFactory, nativeMetricOptions, metricGroup, ttlCompactFiltersManager, writeBufferManagerCapacity, new SkipListMemTableConfig());
+    }
+
+    public RocksDBNoneRestoreOperation(
+            Map<String, RocksDbKvStateInfo> kvStateInformation,
+            File instanceRocksDBPath,
+            DBOptions dbOptions,
+            Function<String, ColumnFamilyOptions> columnFamilyOptionsFactory,
+            RocksDBNativeMetricOptions nativeMetricOptions,
+            MetricGroup metricGroup,
+            @Nonnull RocksDbTtlCompactFiltersManager ttlCompactFiltersManager,
+            Long writeBufferManagerCapacity,
+            MemTableConfig memTableConfig) {
         this.rocksHandle =
                 new RocksDBHandle(
                         kvStateInformation,
@@ -54,7 +69,8 @@ public class RocksDBNoneRestoreOperation<K> implements RocksDBRestoreOperation {
                         nativeMetricOptions,
                         metricGroup,
                         ttlCompactFiltersManager,
-                        writeBufferManagerCapacity);
+                        writeBufferManagerCapacity,
+                        memTableConfig);
     }
 
     @Override

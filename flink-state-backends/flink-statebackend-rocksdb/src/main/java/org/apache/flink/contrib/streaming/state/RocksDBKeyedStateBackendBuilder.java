@@ -60,6 +60,8 @@ import org.apache.flink.util.ResourceGuard;
 import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.ColumnFamilyOptions;
 import org.rocksdb.DBOptions;
+import org.rocksdb.FlinkMemTableConfig;
+import org.rocksdb.MemTableConfig;
 import org.rocksdb.RocksDB;
 
 import javax.annotation.Nonnull;
@@ -216,7 +218,8 @@ public class RocksDBKeyedStateBackendBuilder<K> extends AbstractKeyedStateBacken
                 ttlTimeProvider,
                 latencyTrackingStateConfig,
                 metricGroup,
-                (key, value) -> {},
+                (key, value) -> {
+                },
                 stateHandles,
                 keyGroupCompressionDecorator,
                 cancelStreamRegistry);
@@ -308,6 +311,17 @@ public class RocksDBKeyedStateBackendBuilder<K> extends AbstractKeyedStateBacken
                 CompositeKeySerializationUtils.computeRequiredBytesInKeyGroupPrefix(
                         numberOfKeyGroups);
 
+        MemTableConfig memTableConfig = optionsContainer.getMemTableConfig();
+        if (memTableConfig instanceof FlinkMemTableConfig) {
+            ((FlinkMemTableConfig) memTableConfig)
+                    .setStartKeyGroup(keyGroupRange.getStartKeyGroup())
+                    .setNumKeyGroups(keyGroupRange.getNumberOfKeyGroups())
+                    .setKeyGroupBytes(keyGroupPrefixBytes);
+        }
+        Function<String, ColumnFamilyOptions> updatedColumnFamilyOptionsFactory = (stateName) -> columnFamilyOptionsFactory
+                .apply(stateName)
+                .setMemTableConfig(memTableConfig);
+
         try {
             // Variables for snapshot strategy when incremental checkpoint is enabled
             UUID backendUID = UUID.randomUUID();
@@ -319,7 +333,7 @@ public class RocksDBKeyedStateBackendBuilder<K> extends AbstractKeyedStateBacken
                 nativeMetricMonitor =
                         nativeMetricOptions.isEnabled()
                                 ? new RocksDBNativeMetricMonitor(
-                                        nativeMetricOptions, metricGroup, db, null)
+                                nativeMetricOptions, metricGroup, db, null)
                                 : null;
             } else {
                 prepareDirectories();
@@ -329,7 +343,8 @@ public class RocksDBKeyedStateBackendBuilder<K> extends AbstractKeyedStateBacken
                                 cancelStreamRegistry,
                                 kvStateInformation,
                                 registeredPQStates,
-                                ttlCompactFiltersManager);
+                                ttlCompactFiltersManager,
+                                updatedColumnFamilyOptionsFactory);
                 RocksDBRestoreResult restoreResult = restoreOperation.restore();
                 db = restoreResult.getDb();
                 defaultColumnFamilyHandle = restoreResult.getDefaultColumnFamilyHandle();
@@ -418,7 +433,7 @@ public class RocksDBKeyedStateBackendBuilder<K> extends AbstractKeyedStateBacken
                 this.userCodeClassLoader,
                 this.instanceBasePath,
                 this.optionsContainer,
-                columnFamilyOptionsFactory,
+                updatedColumnFamilyOptionsFactory,
                 this.kvStateRegistry,
                 this.keySerializerProvider.currentSchemaSerializer(),
                 this.executionConfig,
@@ -447,14 +462,15 @@ public class RocksDBKeyedStateBackendBuilder<K> extends AbstractKeyedStateBacken
             CloseableRegistry cancelStreamRegistry,
             LinkedHashMap<String, RocksDBKeyedStateBackend.RocksDbKvStateInfo> kvStateInformation,
             LinkedHashMap<String, HeapPriorityQueueSnapshotRestoreWrapper<?>> registeredPQStates,
-            RocksDbTtlCompactFiltersManager ttlCompactFiltersManager) {
+            RocksDbTtlCompactFiltersManager ttlCompactFiltersManager,
+            Function<String, ColumnFamilyOptions> updatedColumnFamilyOptionsFactory) {
         DBOptions dbOptions = optionsContainer.getDbOptions();
         if (restoreStateHandles.isEmpty()) {
             return new RocksDBNoneRestoreOperation<>(
                     kvStateInformation,
                     instanceRocksDBPath,
                     dbOptions,
-                    columnFamilyOptionsFactory,
+                    updatedColumnFamilyOptionsFactory,
                     nativeMetricOptions,
                     metricGroup,
                     ttlCompactFiltersManager,
@@ -474,7 +490,7 @@ public class RocksDBKeyedStateBackendBuilder<K> extends AbstractKeyedStateBacken
                     instanceBasePath,
                     instanceRocksDBPath,
                     dbOptions,
-                    columnFamilyOptionsFactory,
+                    updatedColumnFamilyOptionsFactory,
                     nativeMetricOptions,
                     metricGroup,
                     customInitializationMetrics,
@@ -495,7 +511,7 @@ public class RocksDBKeyedStateBackendBuilder<K> extends AbstractKeyedStateBacken
                     keySerializerProvider,
                     instanceRocksDBPath,
                     dbOptions,
-                    columnFamilyOptionsFactory,
+                    updatedColumnFamilyOptionsFactory,
                     nativeMetricOptions,
                     metricGroup,
                     restoreStateHandles,
@@ -510,7 +526,7 @@ public class RocksDBKeyedStateBackendBuilder<K> extends AbstractKeyedStateBacken
                     keySerializerProvider,
                     instanceRocksDBPath,
                     dbOptions,
-                    columnFamilyOptionsFactory,
+                    updatedColumnFamilyOptionsFactory,
                     nativeMetricOptions,
                     metricGroup,
                     restoreStateHandles,
